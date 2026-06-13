@@ -286,6 +286,12 @@ def get_wrongbook(db: Annotated[Session, Depends(get_db)]) -> list[SentenceOut]:
         .order_by(WrongRecord.updated_at.desc())
     ).all()
 
+    fav_ids = set(
+        db.scalars(
+            select(Favorite.sentence_id).where(Favorite.user_id == user.id)
+        ).all()
+    )
+
     result = []
     for r in records:
         s = r.sentence
@@ -301,7 +307,7 @@ def get_wrongbook(db: Annotated[Session, Depends(get_db)]) -> list[SentenceOut]:
                 audio_path=s.audio_path,
                 start_time=s.start_time,
                 end_time=s.end_time,
-                is_favorite=True,
+                is_favorite=s.id in fav_ids,
                 wrong_count=r.wrong_count,
             )
         )
