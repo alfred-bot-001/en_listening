@@ -32,7 +32,7 @@ export default function MaterialsPage() {
           getJobStatus(m.id).then((j) =>
             setJobStatuses((prev) => ({
               ...prev,
-              [m.id]: `${j.status} ${j.progress}%`,
+              [m.id]: `${Math.round(j.progress)}%`,
             }))
           );
         }

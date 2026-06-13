@@ -1,19 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import NavLinks from "./NavLinks";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "ListenFlow",
   description: "English listening practice workspace",
 };
-
-const navItems = [
-  { href: "/materials", label: "资料库" },
-  { href: "/practice", label: "继续学习" },
-  { href: "/favorites", label: "收藏句子" },
-  { href: "/wrongbook", label: "错题集" },
-];
 
 export default function RootLayout({
   children,
@@ -28,13 +22,7 @@ export default function RootLayout({
             <Link className="logo" href="/materials">
               ListenFlow
             </Link>
-            <nav className="nav" aria-label="Main navigation">
-              {navItems.map((item) => (
-                <Link key={item.href} href={item.href}>
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
+            <NavLinks />
           </aside>
           <main className="main">{children}</main>
         </div>
@@ -42,4 +30,3 @@ export default function RootLayout({
     </html>
   );
 }
-
