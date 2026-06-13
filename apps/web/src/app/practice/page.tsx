@@ -164,27 +164,19 @@ export default function PracticePage() {
   }, [replay, handleSubmit, goNext, goPrev, toggleFavorite, results]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-xl text-gray-500">Loading practice...</div>
-      </div>
-    );
+    return <div className="center-screen">加载练习中…</div>;
   }
 
   if (error && !group) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-xl text-red-500">{error}</div>
+      <div className="center-screen" style={{ color: "var(--red)" }}>
+        {error}
       </div>
     );
   }
 
   if (!group || !currentSentence) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-xl text-gray-500">No sentences available</div>
-      </div>
-    );
+    return <div className="center-screen">没有可练习的句子</div>;
   }
 
   const allCorrect = results
@@ -192,148 +184,129 @@ export default function PracticePage() {
     : false;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="page">
       {/* Header */}
-      <div className="bg-white shadow-sm px-6 py-4 flex items-center justify-between">
+      <div className="page-head">
         <div>
-          <h1 className="text-lg font-semibold text-gray-900">
-            Group {group.group_index + 1}
-          </h1>
-          <p className="text-sm text-gray-500">
-            Sentence {currentIndex + 1} / {group.total_sentences}
+          <h1>第 {group.group_index + 1} 组</h1>
+          <p className="subtitle">
+            第 {currentIndex + 1} / {group.total_sentences} 句
           </p>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={toggleFavorite}
-            className={`px-3 py-1 rounded text-sm ${
-              currentSentence.is_favorite
-                ? "bg-yellow-100 text-yellow-700"
-                : "bg-gray-100 text-gray-600"
-            }`}
-          >
-            {currentSentence.is_favorite ? "★ Favorited" : "☆ Favorite"} (F)
-          </button>
-        </div>
+        <button
+          className={`chip ${currentSentence.is_favorite ? "ready" : ""}`}
+          style={{ border: 0, cursor: "pointer" }}
+          onClick={toggleFavorite}
+        >
+          {currentSentence.is_favorite ? "★ 已收藏" : "☆ 收藏"} (F)
+        </button>
       </div>
 
-      {/* Progress bar */}
-      <div className="h-1 bg-gray-200">
+      {/* Progress */}
+      <div className="progress-track" style={{ marginBottom: 24 }}>
         <div
-          className="h-full bg-blue-500 transition-all"
+          className="progress-fill"
           style={{
             width: `${((currentIndex + 1) / group.total_sentences) * 100}%`,
           }}
         />
       </div>
 
-      {/* Main content */}
-      <div className="max-w-3xl mx-auto px-6 py-12">
-        {/* Sentence display */}
-        <div className="bg-white rounded-lg shadow-sm p-8 mb-8">
-          <p className="text-xl leading-relaxed">
-            {renderDisplayText(
-              currentSentence.display_text,
-              currentSentence.keywords,
-              inputs,
-              results
-            )}
-          </p>
-        </div>
-
-        {/* Input area */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h3 className="text-sm font-medium text-gray-500 mb-3">
-            Fill in the blanks:
-          </h3>
-          <div className="space-y-3">
-            {currentSentence.keywords.map((kw) => (
-              <div key={kw} className="flex items-center gap-3">
-                <label className="text-sm text-gray-600 w-24">{kw}</label>
-                <input
-                  type="text"
-                  value={inputs[kw] || ""}
-                  onChange={(e) =>
-                    setInputs({ ...inputs, [kw]: e.target.value })
-                  }
-                  disabled={results !== null}
-                  className={`flex-1 px-3 py-2 border rounded-md text-lg focus:outline-none focus:ring-2 focus:ring-blue-400 ${
-                    results
-                      ? results[kw]
-                        ? "border-green-500 bg-green-50 text-green-700"
-                        : "border-red-500 bg-red-50 text-red-700"
-                      : "border-gray-300"
-                  }`}
-                  placeholder="Type here..."
-                  autoFocus={currentSentence.keywords.indexOf(kw) === 0}
-                />
-                {results && !results[kw] && (
-                  <span className="text-sm text-green-600">
-                    Answer: {kw}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Action buttons */}
-        <div className="flex gap-3">
-          {!results ? (
-            <button
-              onClick={handleSubmit}
-              className="flex-1 bg-blue-600 text-white py-3 rounded-lg text-lg font-medium hover:bg-blue-700"
-            >
-              Check (Enter)
-            </button>
-          ) : (
-            <>
-              {allCorrect && (
-                <div className="flex-1 bg-green-50 text-green-700 py-3 rounded-lg text-center text-lg font-medium">
-                  ✓ All correct!
-                </div>
+      <div className="practice-layout">
+        <div className="grid">
+          {/* Sentence */}
+          <div className="card practice-card">
+            <p className="sentence">
+              {renderDisplayText(
+                currentSentence.display_text,
+                currentSentence.keywords,
+                inputs,
+                results
               )}
-              <button
-                onClick={goNext}
-                className="flex-1 bg-blue-600 text-white py-3 rounded-lg text-lg font-medium hover:bg-blue-700"
-              >
-                Next → (Enter)
-              </button>
-            </>
-          )}
-          <button
-            onClick={replay}
-            className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-          >
-            🔊 Play (Space)
-          </button>
-        </div>
-
-        {/* Wrong book indicator */}
-        {results && !allCorrect && (
-          <div className="mt-4 text-sm text-orange-600">
-            {Object.values(results).filter((v) => !v).length} mistake(s).
-            {currentSentence.wrong_count + 1 >= 3 &&
-              " Added to wrong book!"}
+            </p>
           </div>
-        )}
-      </div>
 
-      {/* Shortcuts help */}
-      <div className="fixed bottom-4 right-4 bg-white/90 shadow rounded-lg p-3 text-xs text-gray-500 space-y-1">
-        <div>
-          <kbd className="px-1 bg-gray-100 rounded">Space</kbd> /{" "}
-          <kbd className="px-1 bg-gray-100 rounded">R</kbd> Play
+          {/* Inputs */}
+          <div className="panel">
+            <h3 className="panel-title">填空</h3>
+            <div className="answers">
+              {currentSentence.keywords.map((kw, idx) => (
+                <div key={kw} className="answer-row">
+                  <input
+                    className={`blank-input ${
+                      results ? (results[kw] ? "correct" : "wrong") : ""
+                    }`}
+                    type="text"
+                    value={inputs[kw] || ""}
+                    onChange={(e) =>
+                      setInputs({ ...inputs, [kw]: e.target.value })
+                    }
+                    disabled={results !== null}
+                    placeholder="在此输入…"
+                    autoFocus={idx === 0}
+                  />
+                  {results && !results[kw] && (
+                    <span style={{ color: "var(--green)", fontSize: 14 }}>
+                      答案：{kw}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Buttons */}
+            <div className="row-buttons">
+              {!results ? (
+                <button
+                  className="button"
+                  style={{ flex: 1 }}
+                  onClick={handleSubmit}
+                >
+                  检查 (Enter)
+                </button>
+              ) : (
+                <>
+                  {allCorrect && <div className="banner-success">✓ 全部正确</div>}
+                  <button
+                    className="button"
+                    style={{ flex: 1 }}
+                    onClick={goNext}
+                  >
+                    下一句 → (Enter)
+                  </button>
+                </>
+              )}
+              <button className="button secondary" onClick={replay}>
+                🔊 播放 (Space)
+              </button>
+            </div>
+
+            {results && !allCorrect && (
+              <p style={{ color: "var(--red)", fontSize: 14, marginTop: 14 }}>
+                错 {Object.values(results).filter((v) => !v).length} 处。
+                {currentSentence.wrong_count + 1 >= 3 && " 已加入错题集！"}
+              </p>
+            )}
+          </div>
         </div>
-        <div>
-          <kbd className="px-1 bg-gray-100 rounded">Enter</kbd> Check / Next
-        </div>
-        <div>
-          <kbd className="px-1 bg-gray-100 rounded">←</kbd>{" "}
-          <kbd className="px-1 bg-gray-100 rounded">→</kbd> Prev / Next
-        </div>
-        <div>
-          <kbd className="px-1 bg-gray-100 rounded">F</kbd> Favorite
+
+        {/* Shortcuts */}
+        <div className="panel">
+          <h3 className="panel-title">快捷键</h3>
+          <div className="shortcuts">
+            <div>
+              <span className="kbd">Space</span> / <span className="kbd">R</span> 播放
+            </div>
+            <div>
+              <span className="kbd">Enter</span> 检查 / 下一句
+            </div>
+            <div>
+              <span className="kbd">←</span> <span className="kbd">→</span> 上一句 / 下一句
+            </div>
+            <div>
+              <span className="kbd">F</span> 收藏
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -346,31 +319,26 @@ function renderDisplayText(
   inputs: Record<string, string>,
   results: Record<string, boolean> | null
 ) {
-  // Split display text by ____ placeholders
   const parts = displayText.split("____");
   const elements: React.ReactNode[] = [];
 
   for (let i = 0; i < parts.length; i++) {
     elements.push(
-      <span key={`text-${i}`} className="text-gray-800">
+      <span key={`text-${i}`} className="token">
         {parts[i]}
       </span>
     );
     if (i < keywords.length) {
       const kw = keywords[i];
       const value = inputs[kw] || "";
-      let className = "border-b-2 px-1 ";
+      let cls = "blank";
       if (results) {
-        className += results[kw]
-          ? "border-green-500 text-green-700 bg-green-50"
-          : "border-red-500 text-red-700 bg-red-50";
-      } else {
-        className += value
-          ? "border-blue-400 text-blue-600"
-          : "border-gray-300 text-gray-400";
+        cls += results[kw] ? " correct" : " wrong";
+      } else if (value) {
+        cls += " filled";
       }
       elements.push(
-        <span key={`blank-${i}`} className={className}>
+        <span key={`blank-${i}`} className={cls}>
           {value || "____"}
         </span>
       );

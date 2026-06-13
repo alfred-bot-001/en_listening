@@ -1,5 +1,3 @@
-@import "tailwindcss";
-
 :root {
   --bg: #f5f7f9;
   --surface: #ffffff;
@@ -233,5 +231,392 @@ input {
   .practice-layout {
     grid-template-columns: 1fr;
   }
+
+  .home-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Page chrome ─────────────────────────────────────────────── */
+.page {
+  max-width: 920px;
+}
+
+.page-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.page-head h1 {
+  font-size: 28px;
+  font-weight: 800;
+  margin: 0;
+}
+
+/* ── Panels & forms ──────────────────────────────────────────── */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  padding: 20px;
+}
+
+.panel + .panel,
+.panel + .list,
+.list + .list {
+  margin-top: 16px;
+}
+
+.panel-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 14px;
+}
+
+.form-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.input {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  min-height: 40px;
+  padding: 0 12px;
+}
+
+.input:focus {
+  border-color: var(--blue);
+  outline: 2px solid var(--blue-soft);
+}
+
+.input.grow {
+  flex: 1;
+  min-width: 200px;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.upload input {
+  display: none;
+}
+
+/* button extensions */
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.button.small {
+  font-size: 13px;
+  min-height: 34px;
+  padding: 0 12px;
+}
+
+.button.ghost {
+  background: transparent;
+  border: 0;
+  color: var(--red);
+  font-weight: 600;
+}
+
+.button.ghost:hover {
+  background: var(--red-soft);
+}
+
+/* alert */
+.alert {
+  border-radius: 8px;
+  font-size: 14px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+}
+
+.alert.error {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+/* empty state */
+.empty {
+  color: var(--muted);
+  padding: 48px 20px;
+  text-align: center;
+}
+
+/* ── Material list ───────────────────────────────────────────── */
+.list {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  overflow: hidden;
+}
+
+.row {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 16px 20px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--line);
+}
+
+.row:hover {
+  background: #fafbfc;
+}
+
+.row-main {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  min-width: 0;
+}
+
+.avatar {
+  align-items: center;
+  background: var(--blue-soft);
+  border-radius: 10px;
+  color: var(--blue);
+  display: flex;
+  flex: none;
+  font-size: 20px;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
+}
+
+.row-title {
+  font-weight: 700;
+  margin: 0;
+}
+
+.row-meta {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  gap: 8px;
+  margin-top: 3px;
+}
+
+.row-actions {
+  align-items: center;
+  display: flex;
+  flex: none;
+  gap: 8px;
+}
+
+.chip.pending {
+  background: #fff4d6;
+  color: #9a6b00;
+}
+
+.chip.processing {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.chip.done {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+/* ── Practice ────────────────────────────────────────────────── */
+.progress-track {
+  background: var(--line);
+  border-radius: 99px;
+  height: 6px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  background: var(--blue);
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.token {
+  white-space: pre-wrap;
+}
+
+.blank {
+  border-bottom: 2px solid var(--line);
+  color: var(--muted);
+  padding: 0 6px;
+}
+
+.blank.filled {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.blank.correct {
+  background: var(--green-soft);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.blank.wrong {
+  background: var(--red-soft);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.answers {
+  display: grid;
+  gap: 12px;
+}
+
+.answer-row {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.answer-row label {
+  color: var(--muted);
+  font-size: 13px;
+  width: 90px;
+}
+
+.answer-row .blank-input {
+  flex: 1;
+}
+
+.row-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.row-buttons .button {
+  min-height: 48px;
+}
+
+.banner-success {
+  align-items: center;
+  background: var(--green-soft);
+  border-radius: 8px;
+  color: var(--green);
+  display: flex;
+  flex: 1;
+  font-weight: 700;
+  justify-content: center;
+}
+
+.shortcuts {
+  color: var(--muted);
+  display: grid;
+  font-size: 13px;
+  gap: 8px;
+}
+
+.kbd {
+  background: #eef1f5;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 12px;
+  padding: 1px 6px;
+}
+
+.center-screen {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 18px;
+  justify-content: center;
+  min-height: 60vh;
+}
+
+/* ── Sentence list (favorites / wrongbook) ───────────────────── */
+.sentence-item {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 16px 18px;
+}
+
+.sentence-item.is-wrong {
+  border-left: 4px solid var(--red);
+}
+
+.sentence-item p {
+  margin: 0;
+}
+
+.sentence-meta {
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.sentence-meta .danger {
+  color: var(--red);
+  font-weight: 600;
+}
+
+/* ── Home ────────────────────────────────────────────────────── */
+.home {
+  max-width: 760px;
+}
+
+.home-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, 1fr);
+  margin-top: 28px;
+}
+
+.home-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  padding: 24px;
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.home-card:hover {
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.08);
+  transform: translateY(-2px);
+}
+
+.home-card .ico {
+  font-size: 28px;
+}
+
+.home-card h2 {
+  font-size: 18px;
+  margin: 12px 0 4px;
+}
+
+.home-card p {
+  color: var(--muted);
+  margin: 0;
 }
 
