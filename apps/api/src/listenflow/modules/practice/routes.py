@@ -93,7 +93,9 @@ class ContinueResponse(BaseModel):
 
 
 @router.get("/continue/{material_id}", response_model=ContinueResponse)
-def continue_practice(material_id: str, db: Annotated[Session, Depends(get_db)]):
+def continue_practice(
+    material_id: str, db: Annotated[Session, Depends(get_db)]
+) -> ContinueResponse:
     user = _ensure_user(db)
 
     # Get progress
@@ -135,7 +137,7 @@ def continue_practice(material_id: str, db: Annotated[Session, Depends(get_db)])
 @router.get("/group/{material_id}/{group_index}", response_model=GroupOut)
 def get_group(
     material_id: str, group_index: int, db: Annotated[Session, Depends(get_db)]
-):
+) -> GroupOut:
     user = _ensure_user(db)
     group = _load_group(db, user.id, material_id, group_index)
     if not group:
@@ -147,7 +149,9 @@ def get_group(
 
 
 @router.post("/submit", response_model=SubmitResult)
-def submit_answer(req: SubmitRequest, db: Annotated[Session, Depends(get_db)]):
+def submit_answer(
+    req: SubmitRequest, db: Annotated[Session, Depends(get_db)]
+) -> SubmitResult:
     import uuid
 
     user = _ensure_user(db)
@@ -235,7 +239,9 @@ def submit_answer(req: SubmitRequest, db: Annotated[Session, Depends(get_db)]):
 
 
 @router.post("/favorite/{sentence_id}", status_code=201)
-def add_favorite(sentence_id: str, db: Annotated[Session, Depends(get_db)]):
+def add_favorite(
+    sentence_id: str, db: Annotated[Session, Depends(get_db)]
+) -> dict[str, str]:
     import uuid
 
     user = _ensure_user(db)
@@ -253,7 +259,9 @@ def add_favorite(sentence_id: str, db: Annotated[Session, Depends(get_db)]):
 
 
 @router.delete("/favorite/{sentence_id}")
-def remove_favorite(sentence_id: str, db: Annotated[Session, Depends(get_db)]):
+def remove_favorite(
+    sentence_id: str, db: Annotated[Session, Depends(get_db)]
+) -> dict[str, str]:
     user = _ensure_user(db)
     fav = db.scalar(
         select(Favorite).where(
@@ -270,7 +278,7 @@ def remove_favorite(sentence_id: str, db: Annotated[Session, Depends(get_db)]):
 
 
 @router.get("/wrongbook", response_model=list[SentenceOut])
-def get_wrongbook(db: Annotated[Session, Depends(get_db)]):
+def get_wrongbook(db: Annotated[Session, Depends(get_db)]) -> list[SentenceOut]:
     user = _ensure_user(db)
     records = db.scalars(
         select(WrongRecord)
@@ -304,7 +312,7 @@ def get_wrongbook(db: Annotated[Session, Depends(get_db)]):
 
 
 @router.get("/favorites", response_model=list[SentenceOut])
-def get_favorites(db: Annotated[Session, Depends(get_db)]):
+def get_favorites(db: Annotated[Session, Depends(get_db)]) -> list[SentenceOut]:
     user = _ensure_user(db)
     favs = db.scalars(
         select(Favorite)
@@ -362,14 +370,15 @@ def _load_group(
             select(Favorite.sentence_id).where(Favorite.user_id == user_id)
         ).all()
     )
-    wrong_map = dict(
-        db.execute(
+    wrong_map: dict[str, int] = {
+        sentence_id: wrong_count
+        for sentence_id, wrong_count in db.execute(
             select(WrongRecord.sentence_id, WrongRecord.wrong_count).where(
                 WrongRecord.user_id == user_id,
                 WrongRecord.mastered == False,  # noqa: E712
             )
         ).all()
-    )
+    }
 
     sentence_outs = []
     for s in sentences:

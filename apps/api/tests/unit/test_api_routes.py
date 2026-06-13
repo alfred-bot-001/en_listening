@@ -1,8 +1,12 @@
 import json
+import shutil
+import subprocess
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -14,11 +18,17 @@ from listenflow.models import Favorite, Material, MaterialType, MediaJob, Senten
 from listenflow.modules.health.routes import router as health_router
 from listenflow.modules.materials.routes import router as materials_router
 from listenflow.modules.practice.routes import router as practice_router
+from listenflow.workers import download
+
+FFMPEG = shutil.which("ffmpeg")
 
 
 @pytest.fixture
 def client(tmp_path, monkeypatch) -> Iterator[TestClient]:
     monkeypatch.setenv("LISTENFLOW_STORAGE_ROOT", str(tmp_path))
+    # Run the media pipeline synchronously inside the request so tests can
+    # assert the final job state without polling a background thread.
+    monkeypatch.setenv("LISTENFLOW_JOB_RUNNER", "eager")
     get_settings.cache_clear()
 
     engine = create_engine(
@@ -33,6 +43,7 @@ def client(tmp_path, monkeypatch) -> Iterator[TestClient]:
     app.include_router(health_router)
     app.include_router(materials_router)
     app.include_router(practice_router)
+    app.mount("/storage", StaticFiles(directory=str(tmp_path)), name="storage")
 
     def override_get_db() -> Iterator[Session]:
         db = session_factory()
@@ -72,21 +83,69 @@ def test_upload_text_transcript_processes_material(client: TestClient) -> None:
     assert sentences[0]["keywords"] == ["Students", "learn", "better"]
 
 
-def test_import_url_and_job_status(client: TestClient) -> None:
+def test_import_url_without_downloader_fails_gracefully(client: TestClient) -> None:
+    """yt-dlp is not installed in the test env, so the job should fail clearly."""
     created = client.post(
         "/api/materials/import",
         json={"url": "https://www.youtube.com/watch?v=test", "title": "YT"},
     )
-
     assert created.status_code == 201
     body = created.json()
     assert body["source_type"] == "youtube"
-    assert body["job_status"] == "pending"
 
     job = client.get(f"/api/materials/{body['id']}/job")
-
     assert job.status_code == 200
-    assert job.json()["status"] == "pending"
+    assert job.json()["status"] == "failed"
+    assert "yt-dlp" in job.json()["error_message"]
+
+
+@pytest.mark.skipif(FFMPEG is None, reason="ffmpeg required to cut audio clips")
+def test_import_url_with_fake_downloader_runs_full_pipeline(
+    client: TestClient, tmp_path: Path, monkeypatch
+) -> None:
+    """Patch the downloader to a local subtitle + audio, exercising the whole
+    remote pipeline: parse subtitles -> segment -> cut per-sentence clips."""
+    fixtures = tmp_path / "fixtures"
+    fixtures.mkdir()
+    srt = fixtures / "captions.srt"
+    srt.write_text(
+        "1\n00:00:00,000 --> 00:00:02,000\nStudents learn better.\n\n"
+        "2\n00:00:02,000 --> 00:00:04,000\nPractice is immediate.\n",
+        encoding="utf-8",
+    )
+    media = fixtures / "audio.wav"
+    subprocess.run(
+        [
+            FFMPEG, "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=4",
+            "-ar", "16000", "-ac", "1", str(media),
+        ],
+        check=True,
+        capture_output=True,
+    )
+
+    def fake_download(url, dest_dir, *, stem, subtitle_langs=()):
+        return download.DownloadResult(media_path=media, subtitle_path=srt)
+
+    monkeypatch.setattr(download, "download_media", fake_download)
+
+    created = client.post(
+        "/api/materials/import",
+        json={"url": "https://www.youtube.com/watch?v=test", "title": "YT"},
+    )
+    body = created.json()
+    assert body["job_status"] == "done"
+
+    group = client.get(f"/api/practice/continue/{body['id']}").json()["group"]
+    sentences = group["sentences"]
+    assert [s["text"] for s in sentences] == [
+        "Students learn better.",
+        "Practice is immediate.",
+    ]
+    # Per-sentence audio clips were cut and are reachable under /storage.
+    assert sentences[0]["audio_path"].startswith("clips/")
+    clip = client.get(f"/storage/{sentences[0]['audio_path']}")
+    assert clip.status_code == 200
+    assert len(clip.content) > 0
 
 
 def test_import_url_rejects_unsupported_source(client: TestClient) -> None:
@@ -98,18 +157,24 @@ def test_import_url_rejects_unsupported_source(client: TestClient) -> None:
     assert response.status_code == 400
 
 
-def test_process_material_reports_missing_transcript(client: TestClient) -> None:
-    created = client.post(
-        "/api/materials/import",
-        json={"url": "https://www.bilibili.com/video/test", "title": "Bili"},
-    )
-    material_id = created.json()["id"]
+def test_process_material_reports_missing_source(client: TestClient) -> None:
+    """A material with no transcript and no audio cannot be processed."""
+    db_iter = client.app.dependency_overrides[get_db]()
+    db = next(db_iter)
+    try:
+        db.add(
+            Material(id="empty", title="Empty", source_type=MaterialType.AUDIO)
+        )
+        db.add(MediaJob(id="emptyjob", material_id="empty"))
+        db.commit()
+    finally:
+        db.close()
 
-    processed = client.post(f"/api/materials/{material_id}/process")
+    processed = client.post("/api/materials/empty/process")
 
     assert processed.status_code == 200
     assert processed.json()["status"] == "failed"
-    assert "No transcript file" in processed.json()["error_message"]
+    assert "No source file" in processed.json()["error_message"]
 
 
 def test_delete_material(client: TestClient) -> None:

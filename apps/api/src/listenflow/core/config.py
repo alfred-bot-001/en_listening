@@ -1,8 +1,11 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+JobRunner = Literal["eager", "thread", "dramatiq"]
 
 
 class Settings(BaseSettings):
@@ -20,6 +23,20 @@ class Settings(BaseSettings):
     storage_root: Path = Path("./storage")
     secret_key: str = Field(default="change-me")
     cors_origins: list[str] = ["http://localhost:3000"]
+
+    # Number of sentences per practice group.
+    group_size: int = Field(default=10, ge=1, le=50)
+
+    # How media jobs are executed when submitted from an API route:
+    #   eager    -> run synchronously inside the request (used in tests)
+    #   thread   -> run in a background daemon thread (default for local dev)
+    #   dramatiq -> enqueue to the Redis-backed Dramatiq worker (production)
+    job_runner: JobRunner = "thread"
+
+    # faster-whisper transcription settings.
+    whisper_model: str = "base.en"
+    whisper_device: str = "cpu"
+    whisper_compute_type: str = "int8"
 
 
 @lru_cache

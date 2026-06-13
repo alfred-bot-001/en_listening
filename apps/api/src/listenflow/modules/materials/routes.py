@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, joinedload
 from listenflow.db import get_db
 from listenflow.models import JobStatus, Material, MaterialType, MediaJob
 from listenflow.workers.media_pipeline import process_media_job
+from listenflow.workers.tasks import submit_media_job
 
 router = APIRouter(prefix="/api/materials", tags=["materials"])
 
@@ -54,7 +55,7 @@ def list_materials(
     db: Annotated[Session, Depends(get_db)],
     category: str | None = None,
     source_type: str | None = None,
-):
+) -> list[MaterialOut]:
     stmt = select(Material).options(joinedload(Material.jobs))
     if category:
         stmt = stmt.where(Material.category == category)
@@ -87,7 +88,7 @@ def upload_file(
     file: Annotated[UploadFile, File()],
     db: Annotated[Session, Depends(get_db)],
     title: Annotated[str | None, Form()] = None,
-):
+) -> MaterialOut:
     import os
     import uuid
 
@@ -124,8 +125,8 @@ def upload_file(
     db.add(job)
     db.commit()
 
-    if ext.lower() in (".srt", ".vtt", ".txt"):
-        process_media_job(db, job.id, storage_root=settings.storage_root)
+    # Kick off the media pipeline (sync/thread/dramatiq per settings.job_runner).
+    submit_media_job(db, job.id)
 
     db.refresh(material)
     db.refresh(job)
@@ -145,7 +146,9 @@ def upload_file(
 
 
 @router.post("/import", response_model=MaterialOut, status_code=201)
-def import_url(req: ImportURLRequest, db: Annotated[Session, Depends(get_db)]):
+def import_url(
+    req: ImportURLRequest, db: Annotated[Session, Depends(get_db)]
+) -> MaterialOut:
     import uuid
 
     url = req.url
@@ -172,7 +175,12 @@ def import_url(req: ImportURLRequest, db: Annotated[Session, Depends(get_db)]):
     )
     db.add(job)
     db.commit()
+
+    # Download + transcribe in the background (or inline in eager mode).
+    submit_media_job(db, job.id)
+
     db.refresh(material)
+    db.refresh(job)
 
     return MaterialOut(
         id=material.id,
@@ -189,7 +197,9 @@ def import_url(req: ImportURLRequest, db: Annotated[Session, Depends(get_db)]):
 
 
 @router.get("/{material_id}/job", response_model=JobOut)
-def get_job_status(material_id: str, db: Annotated[Session, Depends(get_db)]):
+def get_job_status(
+    material_id: str, db: Annotated[Session, Depends(get_db)]
+) -> JobOut:
     job = db.scalar(
         select(MediaJob)
         .where(MediaJob.material_id == material_id)
@@ -208,7 +218,9 @@ def get_job_status(material_id: str, db: Annotated[Session, Depends(get_db)]):
 
 
 @router.post("/{material_id}/process", response_model=JobOut)
-def process_material(material_id: str, db: Annotated[Session, Depends(get_db)]):
+def process_material(
+    material_id: str, db: Annotated[Session, Depends(get_db)]
+) -> JobOut:
     from listenflow.core.config import get_settings
 
     job = db.scalar(
@@ -238,7 +250,9 @@ def process_material(material_id: str, db: Annotated[Session, Depends(get_db)]):
 
 
 @router.delete("/{material_id}", status_code=204)
-def delete_material(material_id: str, db: Annotated[Session, Depends(get_db)]):
+def delete_material(
+    material_id: str, db: Annotated[Session, Depends(get_db)]
+) -> None:
     material = db.get(Material, material_id)
     if not material:
         raise HTTPException(404, "Material not found")
