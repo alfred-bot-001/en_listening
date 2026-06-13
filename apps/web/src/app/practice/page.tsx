@@ -148,6 +148,11 @@ export default function PracticePage() {
         case "r":
           replay();
           break;
+        case "Enter":
+          e.preventDefault();
+          if (results) goNext();
+          else handleSubmit();
+          break;
         case "ArrowRight":
           if (results) goNext();
           break;
