@@ -27,6 +27,7 @@ export default function PracticePage() {
   const [error, setError] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const playCountRef = useRef(0);
+  const firstInputRef = useRef<HTMLInputElement | null>(null);
 
   const currentSentence: Sentence | undefined = group?.sentences[currentIndex];
 
@@ -54,6 +55,15 @@ export default function PracticePage() {
     setResults(null);
     playAudio();
   }, [currentSentence?.id]);
+
+  // Focus first blank once the inputs are actually enabled.
+  // Why a separate effect: setResults(null) above is batched, so the input
+  // is still disabled when the prior effect runs — focus() would be ignored.
+  useEffect(() => {
+    if (results === null && currentSentence) {
+      firstInputRef.current?.focus();
+    }
+  }, [results, currentSentence?.id]);
 
   const playAudio = useCallback(() => {
     if (!currentSentence?.audio_path) return;
@@ -238,6 +248,7 @@ export default function PracticePage() {
               {currentSentence.keywords.map((kw, idx) => (
                 <div key={kw} className="answer-row">
                   <input
+                    ref={idx === 0 ? firstInputRef : undefined}
                     className={`blank-input ${
                       results ? (results[kw] ? "correct" : "wrong") : ""
                     }`}
@@ -248,7 +259,6 @@ export default function PracticePage() {
                     }
                     disabled={results !== null}
                     placeholder="在此输入…"
-                    autoFocus={idx === 0}
                   />
                   {results && !results[kw] && (
                     <span style={{ color: "var(--green)", fontSize: 14 }}>
