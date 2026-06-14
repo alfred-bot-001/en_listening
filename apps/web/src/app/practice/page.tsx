@@ -10,7 +10,7 @@ import {
   removeFavorite,
   recentMaterial,
 } from "@/lib/api";
-import type { Group, Sentence, SubmitResult } from "@/types/listenflow";
+import type { Group, Sentence } from "@/types/listenflow";
 
 // Material ID from query param
 function getMaterialId(): string {
@@ -19,20 +19,37 @@ function getMaterialId(): string {
   return params.get("material_id") || "";
 }
 
+// Mirror of backend listenflow.modules.practice.domain.normalize_answer
+function normalize(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/’/g, "'")
+    .replace(/^[^a-z0-9']+|[^a-z0-9']+$/g, "");
+}
+
+// Per-blank state: null = not yet judged, true/false = judged.
+type Verdicts = Record<string, boolean | null>;
+
 export default function PracticePage() {
   const router = useRouter();
   const materialId = getMaterialId();
   const [group, setGroup] = useState<Group | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [inputs, setInputs] = useState<Record<string, string>>({});
-  const [results, setResults] = useState<Record<string, boolean> | null>(null);
+  const [verdicts, setVerdicts] = useState<Verdicts>({});
+  const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const playCountRef = useRef(0);
-  const firstInputRef = useRef<HTMLInputElement | null>(null);
+  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const currentSentence: Sentence | undefined = group?.sentences[currentIndex];
+  const keywords = currentSentence?.keywords ?? [];
+  const allJudged =
+    keywords.length > 0 && keywords.every((kw) => verdicts[kw] != null);
+  const allCorrect = allJudged && keywords.every((kw) => verdicts[kw] === true);
 
   // Load practice data — or resolve "continue" by jumping to the most recent
   // material when no id is in the URL (the 继续学习 nav link uses /practice).
@@ -61,23 +78,23 @@ export default function PracticePage() {
       .finally(() => setLoading(false));
   }, [materialId, router]);
 
-  // Play audio when sentence changes
+  // Reset per-sentence state and play audio when sentence changes.
   useEffect(() => {
     if (!currentSentence) return;
     playCountRef.current = 0;
     setInputs({});
-    setResults(null);
+    setVerdicts({});
+    setSubmitted(false);
+    inputRefs.current = {};
     playAudio();
   }, [currentSentence?.id]);
 
-  // Focus first blank once the inputs are actually enabled.
-  // Why a separate effect: setResults(null) above is batched, so the input
-  // is still disabled when the prior effect runs — focus() would be ignored.
+  // Focus the first still-pending blank when the sentence (re)loads.
   useEffect(() => {
-    if (results === null && currentSentence) {
-      firstInputRef.current?.focus();
-    }
-  }, [results, currentSentence?.id]);
+    if (!currentSentence || allJudged) return;
+    const firstPending = keywords.find((kw) => verdicts[kw] !== true);
+    if (firstPending) inputRefs.current[firstPending]?.focus();
+  }, [currentSentence?.id, allJudged, keywords, verdicts]);
 
   const playAudio = useCallback(() => {
     if (!currentSentence?.audio_path) return;
@@ -97,16 +114,79 @@ export default function PracticePage() {
     playAudio();
   }, [playAudio]);
 
-  // Submit current sentence
-  const handleSubmit = useCallback(async () => {
-    if (!currentSentence || results) return;
-    try {
-      const res = await submitAnswer(currentSentence.id, inputs);
-      setResults(res.results);
-    } catch (e) {
-      setError(String(e));
-    }
-  }, [currentSentence, inputs, results]);
+  // After every blank has been judged, sync to the backend once for stats
+  // (wrong_records / mastered / attempt history).
+  useEffect(() => {
+    if (!currentSentence || !allJudged || submitted) return;
+    setSubmitted(true);
+    submitAnswer(currentSentence.id, inputs).catch((e) => setError(String(e)));
+  }, [currentSentence, allJudged, submitted, inputs]);
+
+  // Focus the next still-pending blank, or null when nothing is pending.
+  const focusNextPending = useCallback(
+    (currentKw: string, newVerdicts: Verdicts) => {
+      const startIdx = keywords.indexOf(currentKw);
+      for (let i = startIdx + 1; i < keywords.length; i++) {
+        if (newVerdicts[keywords[i]] !== true) {
+          inputRefs.current[keywords[i]]?.focus();
+          return;
+        }
+      }
+      // Wrap to any still-pending (could be earlier blanks the user skipped).
+      for (let i = 0; i < keywords.length; i++) {
+        if (newVerdicts[keywords[i]] !== true && i !== startIdx) {
+          inputRefs.current[keywords[i]]?.focus();
+          return;
+        }
+      }
+    },
+    [keywords]
+  );
+
+  // Live-grade on every keystroke: a typed-perfect blank turns green and
+  // hands focus to the next blank without requiring Enter.
+  const handleInputChange = useCallback(
+    (kw: string, value: string) => {
+      setInputs((prev) => ({ ...prev, [kw]: value }));
+      if (verdicts[kw] !== null && verdicts[kw] !== undefined) return;
+      if (normalize(value) === normalize(kw)) {
+        const next: Verdicts = { ...verdicts, [kw]: true };
+        setVerdicts(next);
+        focusNextPending(kw, next);
+      }
+    },
+    [verdicts, focusNextPending]
+  );
+
+  // Enter inside a blank: judge that blank (if not yet) and advance.
+  const handleBlankEnter = useCallback(
+    (kw: string) => {
+      const existing = verdicts[kw];
+      if (existing != null) {
+        focusNextPending(kw, verdicts);
+        return;
+      }
+      const value = inputs[kw] || "";
+      const correct = normalize(value) === normalize(kw);
+      const next: Verdicts = { ...verdicts, [kw]: correct };
+      setVerdicts(next);
+      focusNextPending(kw, next);
+    },
+    [verdicts, inputs, focusNextPending]
+  );
+
+  // 显示答案: mark every pending blank as wrong so its answer shows up,
+  // useful when the learner gives up on the rest of the sentence.
+  const revealRemaining = useCallback(() => {
+    if (allJudged) return;
+    setVerdicts((prev) => {
+      const next: Verdicts = { ...prev };
+      for (const kw of keywords) {
+        if (next[kw] == null) next[kw] = false;
+      }
+      return next;
+    });
+  }, [allJudged, keywords]);
 
   // Next sentence
   const goNext = useCallback(() => {
@@ -150,20 +230,12 @@ export default function PracticePage() {
     }
   }, [currentSentence, group, materialId]);
 
-  // Keyboard shortcuts
+  // Window-level shortcuts. Enter inside a blank is handled per-input below
+  // — this hook only sees Enter when focus has left the inputs (e.g. once
+  // every blank is judged and they're all disabled).
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement) {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          if (results) {
-            goNext();
-          } else {
-            handleSubmit();
-          }
-        }
-        return;
-      }
+      if (e.target instanceof HTMLInputElement) return; // per-input handler
       switch (e.key) {
         case " ":
           e.preventDefault();
@@ -173,12 +245,13 @@ export default function PracticePage() {
           replay();
           break;
         case "Enter":
-          e.preventDefault();
-          if (results) goNext();
-          else handleSubmit();
+          if (allJudged) {
+            e.preventDefault();
+            goNext();
+          }
           break;
         case "ArrowRight":
-          if (results) goNext();
+          if (allJudged) goNext();
           break;
         case "ArrowLeft":
           goPrev();
@@ -190,7 +263,7 @@ export default function PracticePage() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [replay, handleSubmit, goNext, goPrev, toggleFavorite, results]);
+  }, [replay, goNext, goPrev, toggleFavorite, allJudged]);
 
   if (loading) {
     return <div className="center-screen">加载练习中…</div>;
@@ -208,9 +281,7 @@ export default function PracticePage() {
     return <div className="center-screen">没有可练习的句子</div>;
   }
 
-  const allCorrect = results
-    ? Object.values(results).every(Boolean)
-    : false;
+  const wrongCount = keywords.filter((kw) => verdicts[kw] === false).length;
 
   return (
     <div className="page">
@@ -250,9 +321,12 @@ export default function PracticePage() {
                 displayText: currentSentence.display_text,
                 keywords: currentSentence.keywords,
                 inputs,
-                results,
-                firstInputRef,
-                onChange: (kw, v) => setInputs({ ...inputs, [kw]: v }),
+                verdicts,
+                registerRef: (kw, el) => {
+                  inputRefs.current[kw] = el;
+                },
+                onChange: handleInputChange,
+                onEnter: handleBlankEnter,
               })}
             </p>
           </div>
@@ -260,15 +334,7 @@ export default function PracticePage() {
           {/* Buttons */}
           <div className="panel">
             <div className="row-buttons">
-              {!results ? (
-                <button
-                  className="button"
-                  style={{ flex: 1 }}
-                  onClick={handleSubmit}
-                >
-                  检查 (Enter)
-                </button>
-              ) : (
+              {allJudged ? (
                 <>
                   {allCorrect && <div className="banner-success">✓ 全部正确</div>}
                   <button
@@ -279,15 +345,23 @@ export default function PracticePage() {
                     下一句 → (Enter)
                   </button>
                 </>
+              ) : (
+                <button
+                  className="button secondary"
+                  style={{ flex: 1 }}
+                  onClick={revealRemaining}
+                >
+                  显示答案
+                </button>
               )}
               <button className="button secondary" onClick={replay}>
                 🔊 播放 (Space)
               </button>
             </div>
 
-            {results && !allCorrect && (
+            {allJudged && wrongCount > 0 && (
               <p style={{ color: "var(--red)", fontSize: 14, marginTop: 14 }}>
-                错 {Object.values(results).filter((v) => !v).length} 处。
+                错 {wrongCount} 处。
                 {currentSentence.wrong_count + 1 >= 3 && " 已加入错题集！"}
               </p>
             )}
@@ -302,7 +376,7 @@ export default function PracticePage() {
               <span className="kbd">Space</span> / <span className="kbd">R</span> 播放
             </div>
             <div>
-              <span className="kbd">Enter</span> 检查 / 下一句
+              <span className="kbd">Enter</span> 检查当前空 / 下一空 / 下一句
             </div>
             <div>
               <span className="kbd">←</span> <span className="kbd">→</span> 上一句 / 下一句
@@ -321,16 +395,18 @@ function renderInlineBlanks({
   displayText,
   keywords,
   inputs,
-  results,
-  firstInputRef,
+  verdicts,
+  registerRef,
   onChange,
+  onEnter,
 }: {
   displayText: string;
   keywords: string[];
   inputs: Record<string, string>;
-  results: Record<string, boolean> | null;
-  firstInputRef: React.RefObject<HTMLInputElement | null>;
+  verdicts: Verdicts;
+  registerRef: (kw: string, el: HTMLInputElement | null) => void;
   onChange: (kw: string, value: string) => void;
+  onEnter: (kw: string) => void;
 }) {
   const parts = displayText.split("____");
   const elements: React.ReactNode[] = [];
@@ -344,27 +420,31 @@ function renderInlineBlanks({
     if (i < keywords.length) {
       const kw = keywords[i];
       const value = inputs[kw] || "";
-      const verdict =
-        results === null ? null : results[kw] ? "correct" : "wrong";
-      // Size to the expected word so the blank visually hints at the length
-      // without being absurdly small/wide for very short/long answers.
+      const judged = verdicts[kw];
+      const verdictClass =
+        judged === true ? "correct" : judged === false ? "wrong" : "";
+      // Size to the expected word so the blank visually hints at the length.
       const size = Math.max(kw.length + 1, 4);
       elements.push(
         <span key={`blank-${i}`} className="inline-blank">
           <input
-            ref={i === 0 ? firstInputRef : undefined}
-            className={`blank-input ${verdict ?? ""}`}
+            ref={(el) => registerRef(kw, el)}
+            className={`blank-input ${verdictClass}`}
             type="text"
             value={value}
             onChange={(e) => onChange(kw, e.target.value)}
-            disabled={results !== null}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                onEnter(kw);
+              }
+            }}
+            disabled={judged != null}
             size={size}
             autoComplete="off"
             spellCheck={false}
           />
-          {verdict === "wrong" && (
-            <span className="blank-answer">{kw}</span>
-          )}
+          {judged === false && <span className="blank-answer">{kw}</span>}
         </span>
       );
     }

@@ -18,6 +18,9 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
     const text = await res.text();
     throw new Error(`API ${res.status}: ${text}`);
   }
+  // 204 No Content (e.g. DELETE /favorite, DELETE /material) has no body —
+  // res.json() would throw SyntaxError. Callers of fetchAPI<void> rely on this.
+  if (res.status === 204) return undefined as T;
   return res.json();
 }
 
