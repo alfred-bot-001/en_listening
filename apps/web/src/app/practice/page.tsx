@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   continuePractice,
   getGroup,
   submitAnswer,
   addFavorite,
   removeFavorite,
+  recentMaterial,
 } from "@/lib/api";
 import type { Group, Sentence, SubmitResult } from "@/types/listenflow";
 
@@ -18,6 +20,7 @@ function getMaterialId(): string {
 }
 
 export default function PracticePage() {
+  const router = useRouter();
   const materialId = getMaterialId();
   const [group, setGroup] = useState<Group | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -31,11 +34,22 @@ export default function PracticePage() {
 
   const currentSentence: Sentence | undefined = group?.sentences[currentIndex];
 
-  // Load practice data
+  // Load practice data — or resolve "continue" by jumping to the most recent
+  // material when no id is in the URL (the 继续学习 nav link uses /practice).
   useEffect(() => {
     if (!materialId) {
-      setError("No material_id specified");
-      setLoading(false);
+      recentMaterial()
+        .then((res) => {
+          if (res) {
+            router.replace(`/practice?material_id=${res.material_id}`);
+          } else {
+            router.replace("/materials");
+          }
+        })
+        .catch((e) => {
+          setError(e.message);
+          setLoading(false);
+        });
       return;
     }
     continuePractice(materialId)
@@ -45,7 +59,7 @@ export default function PracticePage() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [materialId]);
+  }, [materialId, router]);
 
   // Play audio when sentence changes
   useEffect(() => {

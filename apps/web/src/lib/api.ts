@@ -75,6 +75,13 @@ export async function getJobStatus(
 }
 
 // Practice
+export async function recentMaterial(): Promise<{ material_id: string } | null> {
+  const res = await fetch(`${API_BASE}/api/practice/recent`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
 export async function continuePractice(
   materialId: string
 ): Promise<ContinueResponse> {

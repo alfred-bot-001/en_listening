@@ -13,6 +13,9 @@ from sqlalchemy.orm import Session
 from listenflow.db import get_db
 from listenflow.models import (
     Favorite,
+    JobStatus,
+    Material,
+    MediaJob,
     PracticeAttempt,
     Progress,
     Sentence,
@@ -90,6 +93,40 @@ class ContinueResponse(BaseModel):
 
 
 # ── Continue (resume last position) ────────────────────────────────────
+
+
+class RecentOut(BaseModel):
+    material_id: str
+
+
+@router.get("/recent", response_model=RecentOut)
+def recent_material(db: Annotated[Session, Depends(get_db)]) -> RecentOut:
+    """Material the user practiced most recently.
+
+    Falls back to the newest done material when there's no prior progress,
+    so a freshly-installed user clicking "继续学习" still lands on something
+    playable instead of an error page.
+    """
+    user = _ensure_user(db)
+    recent = db.scalar(
+        select(Progress.material_id)
+        .where(Progress.user_id == user.id)
+        .order_by(Progress.updated_at.desc())
+        .limit(1)
+    )
+    if recent:
+        return RecentOut(material_id=recent)
+
+    fallback = db.scalar(
+        select(Material.id)
+        .join(MediaJob, MediaJob.material_id == Material.id)
+        .where(MediaJob.status == JobStatus.DONE)
+        .order_by(Material.created_at.desc())
+        .limit(1)
+    )
+    if fallback:
+        return RecentOut(material_id=fallback)
+    raise HTTPException(404, "No practiceable material yet")
 
 
 @router.get("/continue/{material_id}", response_model=ContinueResponse)
