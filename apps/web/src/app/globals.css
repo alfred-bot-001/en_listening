@@ -186,25 +186,50 @@ input {
   line-height: 1.4;
 }
 
+/* Inline-blank: an <input> embedded in the sentence as a fill-in.
+   Looks like an underlined slot rather than a boxy input. */
+.inline-blank {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  vertical-align: baseline;
+  margin: 0 2px;
+}
+
 .blank-input {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  min-height: 44px;
-  padding: 0 14px;
-  width: 180px;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid var(--line);
+  border-radius: 0;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  outline: none;
+  padding: 0 4px 2px;
+  text-align: center;
+  transition: border-color 120ms ease, color 120ms ease;
+  min-width: 4ch;
+}
+
+.blank-input:focus {
+  border-bottom-color: var(--blue);
 }
 
 .blank-input.correct {
-  background: var(--green-soft);
-  border-color: var(--green);
+  border-bottom-color: var(--green);
   color: var(--green);
-  font-weight: 800;
 }
 
 .blank-input.wrong {
-  background: var(--red-soft);
-  border-color: var(--red);
+  border-bottom-color: var(--red);
   color: var(--red);
+}
+
+.blank-answer {
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 4px;
 }
 
 @media (max-width: 800px) {
@@ -453,50 +478,6 @@ input {
 
 .token {
   white-space: pre-wrap;
-}
-
-.blank {
-  border-bottom: 2px solid var(--line);
-  color: var(--muted);
-  padding: 0 6px;
-}
-
-.blank.filled {
-  border-color: var(--blue);
-  color: var(--blue);
-}
-
-.blank.correct {
-  background: var(--green-soft);
-  border-color: var(--green);
-  color: var(--green);
-}
-
-.blank.wrong {
-  background: var(--red-soft);
-  border-color: var(--red);
-  color: var(--red);
-}
-
-.answers {
-  display: grid;
-  gap: 12px;
-}
-
-.answer-row {
-  align-items: center;
-  display: flex;
-  gap: 12px;
-}
-
-.answer-row label {
-  color: var(--muted);
-  font-size: 13px;
-  width: 90px;
-}
-
-.answer-row .blank-input {
-  flex: 1;
 }
 
 .row-buttons {

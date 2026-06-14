@@ -243,47 +243,22 @@ export default function PracticePage() {
 
       <div className="practice-layout">
         <div className="grid">
-          {/* Sentence */}
+          {/* Sentence with inline blanks */}
           <div className="card practice-card">
             <p className="sentence">
-              {renderDisplayText(
-                currentSentence.display_text,
-                currentSentence.keywords,
+              {renderInlineBlanks({
+                displayText: currentSentence.display_text,
+                keywords: currentSentence.keywords,
                 inputs,
-                results
-              )}
+                results,
+                firstInputRef,
+                onChange: (kw, v) => setInputs({ ...inputs, [kw]: v }),
+              })}
             </p>
           </div>
 
-          {/* Inputs */}
+          {/* Buttons */}
           <div className="panel">
-            <h3 className="panel-title">填空</h3>
-            <div className="answers">
-              {currentSentence.keywords.map((kw, idx) => (
-                <div key={kw} className="answer-row">
-                  <input
-                    ref={idx === 0 ? firstInputRef : undefined}
-                    className={`blank-input ${
-                      results ? (results[kw] ? "correct" : "wrong") : ""
-                    }`}
-                    type="text"
-                    value={inputs[kw] || ""}
-                    onChange={(e) =>
-                      setInputs({ ...inputs, [kw]: e.target.value })
-                    }
-                    disabled={results !== null}
-                    placeholder="在此输入…"
-                  />
-                  {results && !results[kw] && (
-                    <span style={{ color: "var(--green)", fontSize: 14 }}>
-                      答案：{kw}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Buttons */}
             <div className="row-buttons">
               {!results ? (
                 <button
@@ -342,12 +317,21 @@ export default function PracticePage() {
   );
 }
 
-function renderDisplayText(
-  displayText: string,
-  keywords: string[],
-  inputs: Record<string, string>,
-  results: Record<string, boolean> | null
-) {
+function renderInlineBlanks({
+  displayText,
+  keywords,
+  inputs,
+  results,
+  firstInputRef,
+  onChange,
+}: {
+  displayText: string;
+  keywords: string[];
+  inputs: Record<string, string>;
+  results: Record<string, boolean> | null;
+  firstInputRef: React.RefObject<HTMLInputElement | null>;
+  onChange: (kw: string, value: string) => void;
+}) {
   const parts = displayText.split("____");
   const elements: React.ReactNode[] = [];
 
@@ -360,15 +344,27 @@ function renderDisplayText(
     if (i < keywords.length) {
       const kw = keywords[i];
       const value = inputs[kw] || "";
-      let cls = "blank";
-      if (results) {
-        cls += results[kw] ? " correct" : " wrong";
-      } else if (value) {
-        cls += " filled";
-      }
+      const verdict =
+        results === null ? null : results[kw] ? "correct" : "wrong";
+      // Size to the expected word so the blank visually hints at the length
+      // without being absurdly small/wide for very short/long answers.
+      const size = Math.max(kw.length + 1, 4);
       elements.push(
-        <span key={`blank-${i}`} className={cls}>
-          {value || "____"}
+        <span key={`blank-${i}`} className="inline-blank">
+          <input
+            ref={i === 0 ? firstInputRef : undefined}
+            className={`blank-input ${verdict ?? ""}`}
+            type="text"
+            value={value}
+            onChange={(e) => onChange(kw, e.target.value)}
+            disabled={results !== null}
+            size={size}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {verdict === "wrong" && (
+            <span className="blank-answer">{kw}</span>
+          )}
         </span>
       );
     }
