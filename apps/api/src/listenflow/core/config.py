@@ -38,6 +38,13 @@ class Settings(BaseSettings):
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
 
+    # Zhipu (智谱) LLM for keyword analysis. When the key is unset the pipeline
+    # falls back to the naive stopword-based extractor in practice.domain.
+    zhipu_api_key: str | None = None
+    zhipu_model: str = "glm-4-flash"
+    zhipu_base_url: str = "https://open.bigmodel.cn/api/paas/v4"
+    keyword_batch_size: int = Field(default=30, ge=1, le=100)
+
 
 @lru_cache
 def get_settings() -> Settings:

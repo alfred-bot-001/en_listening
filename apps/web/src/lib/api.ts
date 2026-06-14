@@ -62,6 +62,12 @@ export async function deleteMaterial(id: string): Promise<void> {
   await fetchAPI<void>(`/api/materials/${id}`, { method: "DELETE" });
 }
 
+export async function reanalyzeKeywords(
+  id: string
+): Promise<{ material_id: string; sentence_count: number }> {
+  return fetchAPI(`/api/materials/${id}/reanalyze`, { method: "POST" });
+}
+
 export async function getJobStatus(
   materialId: string
 ): Promise<{ id: string; status: string; progress: number }> {

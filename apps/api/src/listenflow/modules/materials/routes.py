@@ -10,7 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from listenflow.db import get_db
-from listenflow.models import JobStatus, Material, MaterialType, MediaJob
+from listenflow.models import JobStatus, Material, MaterialType, MediaJob, Sentence
+from listenflow.workers.keyword_analyzer import analyze_keywords
 from listenflow.workers.media_pipeline import process_media_job
 from listenflow.workers.tasks import submit_media_job
 
@@ -244,6 +245,42 @@ def process_material(
         progress=processed.progress,
         error_message=processed.error_message,
     )
+
+
+# ── Re-analyze keywords ────────────────────────────────────────────────
+
+
+class ReanalyzeOut(BaseModel):
+    material_id: str
+    sentence_count: int
+
+
+@router.post("/{material_id}/reanalyze", response_model=ReanalyzeOut)
+def reanalyze_keywords(
+    material_id: str, db: Annotated[Session, Depends(get_db)]
+) -> ReanalyzeOut:
+    """Re-run keyword analysis (LLM) over every sentence of this material."""
+    import json as _json
+
+    material = db.get(Material, material_id)
+    if not material:
+        raise HTTPException(404, "Material not found")
+
+    sentences = list(
+        db.scalars(
+            select(Sentence)
+            .where(Sentence.material_id == material_id)
+            .order_by(Sentence.group_index, Sentence.sentence_index)
+        ).all()
+    )
+    if not sentences:
+        raise HTTPException(400, "Material has no sentences yet")
+
+    new_keywords = analyze_keywords([s.text for s in sentences])
+    for sentence, keywords in zip(sentences, new_keywords, strict=True):
+        sentence.keywords = _json.dumps(keywords)
+    db.commit()
+    return ReanalyzeOut(material_id=material_id, sentence_count=len(sentences))
 
 
 # ── Delete material ────────────────────────────────────────────────────

@@ -9,6 +9,7 @@ dependencies = [
     "dramatiq[redis]>=1.17.0",
     "faster-whisper>=1.0.0",
     "fastapi[standard]>=0.115.0",
+    "httpx>=0.27.0",
     "pydantic-settings>=2.6.0",
     "psycopg[binary]>=3.2.0",
     "python-multipart>=0.0.12",

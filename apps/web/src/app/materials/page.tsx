@@ -7,6 +7,7 @@ import {
   uploadFile,
   deleteMaterial,
   getJobStatus,
+  reanalyzeKeywords,
 } from "@/lib/api";
 import type { Material } from "@/types/listenflow";
 
@@ -18,6 +19,7 @@ export default function MaterialsPage() {
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState("");
   const [jobStatuses, setJobStatuses] = useState<Record<string, string>>({});
+  const [reanalyzing, setReanalyzing] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     try {
@@ -89,6 +91,25 @@ export default function MaterialsPage() {
       }
     },
     [load]
+  );
+
+  const handleReanalyze = useCallback(
+    async (id: string) => {
+      setReanalyzing((prev) => ({ ...prev, [id]: true }));
+      setError("");
+      try {
+        await reanalyzeKeywords(id);
+      } catch (e) {
+        setError(String(e));
+      } finally {
+        setReanalyzing((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      }
+    },
+    []
   );
 
   const statusChip = (status: string | null) => {
@@ -199,12 +220,22 @@ export default function MaterialsPage() {
               </div>
               <div className="row-actions">
                 {m.job_status === "done" && (
-                  <a
-                    className="button small"
-                    href={`/practice?material_id=${m.id}`}
-                  >
-                    练习
-                  </a>
+                  <>
+                    <a
+                      className="button small"
+                      href={`/practice?material_id=${m.id}`}
+                    >
+                      练习
+                    </a>
+                    <button
+                      className="button secondary small"
+                      onClick={() => handleReanalyze(m.id)}
+                      disabled={!!reanalyzing[m.id]}
+                      title="用 LLM 重新挑选每句的关键词"
+                    >
+                      {reanalyzing[m.id] ? "分析中…" : "重新分析"}
+                    </button>
+                  </>
                 )}
                 <button
                   className="button ghost small"

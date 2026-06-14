@@ -27,8 +27,8 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from listenflow.models import JobStatus, Material, MaterialType, MediaJob, Sentence
-from listenflow.modules.practice.domain import extract_keywords
 from listenflow.workers import audio, download, transcribe
+from listenflow.workers.keyword_analyzer import analyze_keywords
 
 # Extensions we treat as ready-to-parse transcripts rather than playable media.
 TRANSCRIPT_EXTS = {".srt", ".vtt", ".txt"}
@@ -224,9 +224,11 @@ def _persist_sentences(
     db.execute(delete(Sentence).where(Sentence.material_id == material.id))
     clips_dir = storage_root / "clips" / material.id
 
+    all_keywords = analyze_keywords([seg.text for seg in segments])
+
     for index, segment in enumerate(segments):
         sentence_id = uuid.uuid4().hex
-        keywords = extract_keywords(segment.text)
+        keywords = all_keywords[index]
         audio_rel: str | None = None
         if clip_source is not None:
             clip_path = clips_dir / f"{sentence_id}.mp3"
