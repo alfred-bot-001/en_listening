@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
-import NavLinks from "./NavLinks";
+import AppShell from "./AppShell";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -17,15 +16,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body>
-        <div className="app-shell">
-          <aside className="sidebar">
-            <Link className="logo" href="/materials">
-              ListenFlow
-            </Link>
-            <NavLinks />
-          </aside>
-          <main className="main">{children}</main>
-        </div>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

@@ -1,11 +1,13 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from listenflow.core.config import get_settings
+from listenflow.modules.auth.routes import router as auth_router
+from listenflow.modules.auth.security import require_auth
 from listenflow.modules.health.routes import router as health_router
 from listenflow.modules.materials.routes import router as materials_router
 from listenflow.modules.practice.routes import router as practice_router
@@ -45,9 +47,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Public endpoints.
 app.include_router(health_router)
-app.include_router(materials_router)
-app.include_router(practice_router)
+app.include_router(auth_router)
+
+# Everything else requires a valid Bearer token (single configured user).
+_protected = [Depends(require_auth)]
+app.include_router(materials_router, dependencies=_protected)
+app.include_router(practice_router, dependencies=_protected)
 
 # Serve generated media (per-sentence audio clips) for the practice player.
 # The frontend plays `${API_BASE}/storage/{sentence.audio_path}`.

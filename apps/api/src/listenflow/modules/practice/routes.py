@@ -19,6 +19,7 @@ from listenflow.models import (
     PracticeAttempt,
     Progress,
     Sentence,
+    Stage,
     User,
     WrongRecord,
 )
@@ -127,6 +128,153 @@ def recent_material(db: Annotated[Session, Depends(get_db)]) -> RecentOut:
     if fallback:
         return RecentOut(material_id=fallback)
     raise HTTPException(404, "No practiceable material yet")
+
+
+# ── Stages (关卡) ──────────────────────────────────────────────────────
+
+
+class StageOut(BaseModel):
+    group_index: int
+    sentence_count: int
+    stars: int
+    best_accuracy: float
+    attempts: int
+
+
+class StagesResponse(BaseModel):
+    material_id: str
+    stages: list[StageOut]
+
+
+class CompleteStageRequest(BaseModel):
+    correct_count: int
+    total_count: int
+
+
+def _accuracy_to_stars(accuracy: float) -> int:
+    """≥95% → 3 stars, ≥80% → 2 stars, >0% (i.e. completed) → 1 star."""
+    if accuracy >= 95:
+        return 3
+    if accuracy >= 80:
+        return 2
+    return 1
+
+
+@router.get("/stages/{material_id}", response_model=StagesResponse)
+def get_stages(
+    material_id: str, db: Annotated[Session, Depends(get_db)]
+) -> StagesResponse:
+    """List every group of this material with the user's best stage record.
+
+    Groups that have never been attempted are still listed (stars=0,
+    best_accuracy=0, attempts=0) so the UI can show locked-but-visible cards.
+    """
+    user = _ensure_user(db)
+
+    # Count sentences per group_index.
+    counts: dict[int, int] = {
+        int(group_index): int(count)
+        for group_index, count in db.execute(
+            select(Sentence.group_index, func.count(Sentence.id))
+            .where(Sentence.material_id == material_id)
+            .group_by(Sentence.group_index)
+            .order_by(Sentence.group_index)
+        ).all()
+    }
+    if not counts:
+        return StagesResponse(material_id=material_id, stages=[])
+
+    # Pull existing stage records (one per (user, material, group)).
+    records: dict[int, Stage] = {
+        s.group_index: s
+        for s in db.scalars(
+            select(Stage).where(
+                Stage.user_id == user.id, Stage.material_id == material_id
+            )
+        ).all()
+    }
+
+    out: list[StageOut] = []
+    for group_index in sorted(counts):
+        rec = records.get(group_index)
+        out.append(
+            StageOut(
+                group_index=group_index,
+                sentence_count=counts[group_index],
+                stars=rec.stars if rec else 0,
+                best_accuracy=rec.best_accuracy if rec else 0.0,
+                attempts=rec.attempts if rec else 0,
+            )
+        )
+    return StagesResponse(material_id=material_id, stages=out)
+
+
+@router.post(
+    "/stages/{material_id}/{group_index}/complete", response_model=StageOut
+)
+def complete_stage(
+    material_id: str,
+    group_index: int,
+    req: CompleteStageRequest,
+    db: Annotated[Session, Depends(get_db)],
+) -> StageOut:
+    """Record an attempt result and bump best_accuracy / stars accordingly."""
+    if req.total_count <= 0:
+        raise HTTPException(400, "total_count must be > 0")
+    if req.correct_count < 0 or req.correct_count > req.total_count:
+        raise HTTPException(400, "correct_count out of range")
+
+    user = _ensure_user(db)
+    accuracy = (req.correct_count / req.total_count) * 100.0
+    this_stars = _accuracy_to_stars(accuracy)
+
+    stage = db.scalar(
+        select(Stage).where(
+            Stage.user_id == user.id,
+            Stage.material_id == material_id,
+            Stage.group_index == group_index,
+        )
+    )
+    if stage is None:
+        stage = Stage(
+            user_id=user.id,
+            material_id=material_id,
+            group_index=group_index,
+            stars=this_stars,
+            best_accuracy=accuracy,
+            attempts=1,
+            completed_at=func.now(),
+        )
+        db.add(stage)
+    else:
+        stage.attempts += 1
+        if accuracy > stage.best_accuracy:
+            stage.best_accuracy = accuracy
+        if this_stars > stage.stars:
+            stage.stars = this_stars
+        if stage.completed_at is None:
+            stage.completed_at = func.now()
+    db.commit()
+    db.refresh(stage)
+
+    # Need the group's sentence count for the response so the UI doesn't
+    # have to round-trip back to /stages just to redraw one card.
+    sentence_count = int(
+        db.scalar(
+            select(func.count(Sentence.id)).where(
+                Sentence.material_id == material_id,
+                Sentence.group_index == group_index,
+            )
+        )
+        or 0
+    )
+    return StageOut(
+        group_index=group_index,
+        sentence_count=sentence_count,
+        stars=stage.stars,
+        best_accuracy=stage.best_accuracy,
+        attempts=stage.attempts,
+    )
 
 
 @router.get("/continue/{material_id}", response_model=ContinueResponse)

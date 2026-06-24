@@ -3,6 +3,7 @@ from uuid import UUID
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
+from listenflow.core.config import get_settings
 from listenflow.db import Base
 from listenflow.models import JobStatus, Material, MaterialType, MediaJob, Sentence
 from listenflow.workers.media_pipeline import (
@@ -52,7 +53,12 @@ def test_parse_plain_text_transcript() -> None:
     assert segments[1].start_time == 3
 
 
-def test_process_media_job_creates_sentences(tmp_path) -> None:
+def test_process_media_job_creates_sentences(tmp_path, monkeypatch) -> None:
+    # Keep this unit test offline: with no Zhipu key, keyword analysis falls
+    # back to the deterministic naive extractor instead of calling the LLM.
+    monkeypatch.setenv("LISTENFLOW_ZHIPU_API_KEY", "")
+    get_settings.cache_clear()
+
     engine = create_engine("sqlite:///:memory:")
     try:
         Base.metadata.create_all(engine)
@@ -90,3 +96,4 @@ Students learn better when practice is immediate.
             assert sentence.keywords == '["Students", "learn", "better"]'
     finally:
         engine.dispose()
+        get_settings.cache_clear()

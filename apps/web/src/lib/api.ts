@@ -7,14 +7,21 @@ import type {
   ContinueResponse,
 } from "@/types/listenflow";
 
+import { authHeaders, handleUnauthorized } from "@/lib/auth";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...options?.headers },
     ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+      ...authHeaders(),
+    },
   });
   if (!res.ok) {
+    handleUnauthorized(res.status);
     const text = await res.text();
     throw new Error(`API ${res.status}: ${text}`);
   }
@@ -55,9 +62,13 @@ export async function uploadFile(
   if (title) formData.append("title", title);
   const res = await fetch(`${API_BASE}/api/materials/upload`, {
     method: "POST",
+    headers: authHeaders(),
     body: formData,
   });
-  if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+  if (!res.ok) {
+    handleUnauthorized(res.status);
+    throw new Error(`Upload failed: ${res.status}`);
+  }
   return res.json();
 }
 
@@ -79,9 +90,14 @@ export async function getJobStatus(
 
 // Practice
 export async function recentMaterial(): Promise<{ material_id: string } | null> {
-  const res = await fetch(`${API_BASE}/api/practice/recent`);
+  const res = await fetch(`${API_BASE}/api/practice/recent`, {
+    headers: authHeaders(),
+  });
   if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    handleUnauthorized(res.status);
+    throw new Error(`API ${res.status}: ${await res.text()}`);
+  }
   return res.json();
 }
 
@@ -122,6 +138,39 @@ export async function removeFavorite(sentenceId: string): Promise<void> {
 
 export async function getWrongbook(): Promise<Sentence[]> {
   return fetchAPI<Sentence[]>("/api/practice/wrongbook");
+}
+
+// Stages (关卡)
+export interface Stage {
+  group_index: number;
+  sentence_count: number;
+  stars: number;
+  best_accuracy: number;
+  attempts: number;
+}
+
+export async function getStages(
+  materialId: string
+): Promise<{ material_id: string; stages: Stage[] }> {
+  return fetchAPI(`/api/practice/stages/${materialId}`);
+}
+
+export async function completeStage(
+  materialId: string,
+  groupIndex: number,
+  correctCount: number,
+  totalCount: number
+): Promise<Stage> {
+  return fetchAPI(
+    `/api/practice/stages/${materialId}/${groupIndex}/complete`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        correct_count: correctCount,
+        total_count: totalCount,
+      }),
+    }
+  );
 }
 
 export async function getFavorites(): Promise<Sentence[]> {

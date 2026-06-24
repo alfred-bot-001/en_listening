@@ -294,7 +294,7 @@ def parse_transcript(content: str) -> list[TranscriptSegment]:
 
 
 def _parse_timed_transcript(content: str) -> list[TranscriptSegment]:
-    segments: list[TranscriptSegment] = []
+    cues: list[TranscriptSegment] = []
     for block in re.split(r"\n{2,}", content):
         lines = [line.strip() for line in block.splitlines() if line.strip()]
         if not lines or lines[0].upper() == "WEBVTT":
@@ -308,14 +308,89 @@ def _parse_timed_transcript(content: str) -> list[TranscriptSegment]:
         text_lines = lines[timing_index + 1 :]
         text = _clean_caption_text(" ".join(text_lines))
         if text:
-            segments.append(
+            cues.append(
                 TranscriptSegment(
                     text=text,
                     start_time=_parse_timestamp(start_raw),
                     end_time=_parse_timestamp(end_raw),
                 )
             )
-    return segments
+
+    return _resegment_by_sentence(cues)
+
+
+def _resegment_by_sentence(
+    cues: list[TranscriptSegment],
+) -> list[TranscriptSegment]:
+    """Stitch cues together and re-cut at sentence boundaries.
+
+    YouTube auto-captions use a sliding ~5-second window with no respect for
+    sentence boundaries, so a cue often holds the tail of one sentence and
+    the head of the next ("husband Dan. We are going to give you"). Join the
+    cue text into one stream, split on .!? followed by whitespace, and map
+    each new sentence back to a [start, end] by interpolating timestamps
+    inside the cue that contains each end of the sentence.
+    """
+    if not cues:
+        return cues
+
+    # Concatenate cue text with a space separator, recording where each cue
+    # ends in the joined string so we can map char offsets back to time.
+    pieces: list[str] = []
+    boundaries: list[int] = []  # cumulative end offset for each cue
+    cursor = 0
+    for cue in cues:
+        text = cue.text.strip()
+        if pieces:
+            pieces.append(" ")
+            cursor += 1
+        pieces.append(text)
+        cursor += len(text)
+        boundaries.append(cursor)
+    full = "".join(pieces)
+
+    sentences = [s for s in re.split(r"(?<=[.!?])\s+", full) if s.strip()]
+    if not sentences:
+        return cues
+
+    out: list[TranscriptSegment] = []
+    scan = 0
+    for sent in sentences:
+        idx = full.find(sent, scan)
+        if idx < 0:
+            continue  # shouldn't happen; skip if it does
+        scan = idx + len(sent)
+
+        # Cue range that this sentence's text falls into.
+        start_cue = _cue_at_offset(boundaries, idx)
+        end_cue = _cue_at_offset(boundaries, idx + len(sent) - 1)
+        start_time = cues[start_cue].start_time
+        end_time = cues[end_cue].end_time
+
+        # YouTube auto-caption cues overlap in time (they're a sliding read
+        # window, not "when this was said"). Force monotonicity against the
+        # previous sentence and guarantee a non-trivial clip length so
+        # ffmpeg's -ss/-t always produces a valid mp3.
+        if out and start_time < out[-1].end_time:
+            start_time = out[-1].end_time
+        if end_time < start_time + 0.5:
+            end_time = start_time + 0.5
+
+        out.append(
+            TranscriptSegment(
+                text=sent.strip(),
+                start_time=start_time,
+                end_time=end_time,
+            )
+        )
+    return out
+
+
+def _cue_at_offset(boundaries: list[int], offset: int) -> int:
+    for i, end in enumerate(boundaries):
+        if offset < end:
+            return i
+    return len(boundaries) - 1
 
 
 def _parse_plain_text_transcript(content: str) -> list[TranscriptSegment]:
@@ -346,4 +421,7 @@ def _parse_timestamp(value: str) -> float:
 def _clean_caption_text(value: str) -> str:
     without_tags = re.sub(r"<[^>]+>", "", value)
     without_speaker = re.sub(r"^\s*[-\w ]+:\s*", "", without_tags)
-    return re.sub(r"\s+", " ", without_speaker).strip()
+    # YouTube auto-captions mark speaker turns with `>>` (sometimes mid-cue,
+    # since cues are a sliding window over the dialog). Drop them.
+    without_marker = re.sub(r"\s*>>\s*", " ", without_speaker)
+    return re.sub(r"\s+", " ", without_marker).strip()

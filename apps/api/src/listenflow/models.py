@@ -237,3 +237,34 @@ class PracticeAttempt(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     sentence: Mapped[Sentence] = relationship(back_populates="attempts")
+
+
+# ── Stage (关卡) ──────────────────────────────────────────────────────
+
+
+class Stage(Base):
+    """Per-user, per-group stage record: best stars + accuracy + attempt count.
+
+    One row per (user_id, material_id, group_index). Stars are derived from
+    best_accuracy: ≥95% → 3, ≥80% → 2, completed → 1, otherwise 0 (and the row
+    is created lazily on first attempt completion).
+    """
+
+    __tablename__ = "stages"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    material_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("materials.id", ondelete="CASCADE"), nullable=False
+    )
+    group_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    stars: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    best_accuracy: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )

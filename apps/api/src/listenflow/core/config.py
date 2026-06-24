@@ -45,6 +45,13 @@ class Settings(BaseSettings):
     zhipu_base_url: str = "https://open.bigmodel.cn/api/paas/v4"
     keyword_batch_size: int = Field(default=30, ge=1, le=100)
 
+    # Single-user authentication. Credentials come from the environment; login
+    # issues a JWT signed with secret_key. Change these in your .env.
+    auth_username: str = "admin"
+    auth_password: str = "listenflow"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = Field(default=60 * 24 * 7, ge=1)  # 7 days
+
 
 @lru_cache
 def get_settings() -> Settings:

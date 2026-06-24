@@ -601,3 +601,157 @@ input {
   margin: 0;
 }
 
+/* ── Auth ────────────────────────────────────────────────────── */
+.login-screen {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.login-card {
+  width: 360px;
+  max-width: 100%;
+}
+
+.login-logo {
+  font-size: 24px;
+  font-weight: 800;
+  margin: 0;
+}
+
+.login-field {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.login-field span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.login-field .input {
+  width: 100%;
+}
+
+.logout-btn {
+  margin-top: auto;
+  width: 100%;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+}
+
+
+/* ── Stage cards (关卡列表) ─────────────────────────────────────────── */
+.stages-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.stage-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px 20px;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 80ms ease, border-color 80ms ease;
+}
+
+.stage-card:hover {
+  border-color: var(--blue);
+  transform: translateY(-1px);
+}
+
+.stage-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.stage-card-head h2 {
+  font-size: 17px;
+  margin: 0;
+}
+
+.stage-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stage-meta {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.stage-meta.muted {
+  color: #c0c0c0;
+}
+
+.stage-stars,
+.stage-summary-stars {
+  font-size: 18px;
+  letter-spacing: 2px;
+}
+
+.stage-stars .on,
+.stage-summary-stars .on {
+  color: #ffb400;
+}
+
+.stage-stars .off,
+.stage-summary-stars .off {
+  color: #d8d8d8;
+}
+
+/* ── Stage summary (结算 modal) ─────────────────────────────────────── */
+.stage-summary-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.stage-summary {
+  background: #fff;
+  padding: 32px 36px;
+  border-radius: 16px;
+  min-width: 360px;
+  max-width: 480px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+  text-align: center;
+}
+
+.stage-summary h2 {
+  margin: 0 0 16px;
+  font-size: 22px;
+}
+
+.stage-summary-stars {
+  font-size: 56px;
+  margin: 8px 0 16px;
+}
+
+.stage-summary-meta {
+  color: var(--muted);
+  margin: 0 0 24px;
+}
+
+.stage-summary-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}

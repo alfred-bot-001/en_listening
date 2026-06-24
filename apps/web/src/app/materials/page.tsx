@@ -221,10 +221,7 @@ export default function MaterialsPage() {
               <div className="row-actions">
                 {m.job_status === "done" && (
                   <>
-                    <a
-                      className="button small"
-                      href={`/practice?material_id=${m.id}`}
-                    >
+                    <a className="button small" href={`/practice/${m.id}`}>
                       练习
                     </a>
                     <button
