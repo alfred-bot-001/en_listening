@@ -42,8 +42,10 @@ type Verdicts = Record<string, boolean | null>;
 
 export default function PracticePage() {
   const router = useRouter();
-  const materialId = getMaterialId();
-  const requestedGroupIndex = getGroupIndexParam();
+  const [activeMaterialId, setActiveMaterialId] = useState(getMaterialId);
+  const [activeGroupIndex, setActiveGroupIndex] = useState<number | null>(
+    getGroupIndexParam
+  );
   const [group, setGroup] = useState<Group | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [inputs, setInputs] = useState<Record<string, string>>({});
@@ -70,10 +72,12 @@ export default function PracticePage() {
   //   2. material_id + group_index → load that exact stage (entered from card)
   //   3. material_id only → resume from saved progress
   useEffect(() => {
-    if (!materialId) {
+    if (!activeMaterialId) {
       recentMaterial()
         .then((res) => {
           if (res) {
+            setActiveMaterialId(res.material_id);
+            setActiveGroupIndex(null);
             router.replace(`/practice?material_id=${res.material_id}`);
           } else {
             router.replace("/materials");
@@ -85,8 +89,8 @@ export default function PracticePage() {
         });
       return;
     }
-    if (requestedGroupIndex !== null) {
-      getGroup(materialId, requestedGroupIndex)
+    if (activeGroupIndex !== null) {
+      getGroup(activeMaterialId, activeGroupIndex)
         .then((g) => {
           setGroup(g);
           setCurrentIndex(0);
@@ -94,7 +98,7 @@ export default function PracticePage() {
         .catch((e) => setError(e.message))
         .finally(() => setLoading(false));
     } else {
-      continuePractice(materialId)
+      continuePractice(activeMaterialId)
         .then((res) => {
           setGroup(res.group);
           setCurrentIndex(res.progress.sentence_index);
@@ -102,7 +106,7 @@ export default function PracticePage() {
         .catch((e) => setError(e.message))
         .finally(() => setLoading(false));
     }
-  }, [materialId, requestedGroupIndex, router]);
+  }, [activeMaterialId, activeGroupIndex, router]);
 
   // Reset attempt tally when we land on a new stage (group).
   useEffect(() => {
@@ -238,13 +242,13 @@ export default function PracticePage() {
     const lastCorrect = keywords.filter((kw) => verdicts[kw] === true).length;
     const correct = stageCorrect + (submitted ? 0 : lastCorrect);
     const total = stageTotal + (submitted ? 0 : keywords.length);
-    completeStage(materialId, group.group_index, correct, total)
+    completeStage(activeMaterialId, group.group_index, correct, total)
       .then(setStageResult)
       .catch((e) => setError(String(e)));
   }, [
     group,
     currentIndex,
-    materialId,
+    activeMaterialId,
     stageCorrect,
     stageTotal,
     stageResult,
@@ -267,23 +271,24 @@ export default function PracticePage() {
   const loadNextStage = useCallback(() => {
     if (!group) return;
     const nextIndex = group.group_index + 1;
-    getGroup(materialId, nextIndex)
+    getGroup(activeMaterialId, nextIndex)
       .then((g) => {
         setGroup(g);
         setCurrentIndex(0);
         setStageResult(null);
+        setActiveGroupIndex(nextIndex);
         // The router URL drifts out of sync with the loaded stage; rewrite it
         // so reloads and 后退 keep landing on the right place.
         if (typeof window !== "undefined") {
           window.history.replaceState(
             null,
             "",
-            `/practice?material_id=${materialId}&group_index=${nextIndex}`
+            `/practice?material_id=${activeMaterialId}&group_index=${nextIndex}`
           );
         }
       })
       .catch(() => setError("已是最后一关"));
-  }, [group, materialId]);
+  }, [group, activeMaterialId]);
 
   // Previous sentence
   const goPrev = useCallback(() => {
@@ -303,13 +308,13 @@ export default function PracticePage() {
       }
       // Refresh group
       if (group) {
-        const g = await getGroup(materialId, group.group_index);
+        const g = await getGroup(activeMaterialId, group.group_index);
         setGroup(g);
       }
     } catch (e) {
       setError(String(e));
     }
-  }, [currentSentence, group, materialId]);
+  }, [currentSentence, group, activeMaterialId]);
 
   // Window-level shortcuts. Enter inside a blank is handled per-input below
   // — this hook only sees Enter when focus has left the inputs (e.g. once
@@ -369,7 +374,7 @@ export default function PracticePage() {
       {stageResult && (
         <StageSummary
           stage={stageResult}
-          materialId={materialId}
+          materialId={activeMaterialId}
           onRestart={restartStage}
           onNext={loadNextStage}
         />
