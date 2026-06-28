@@ -9,6 +9,7 @@ import {
   getJobStatus,
   reanalyzeKeywords,
 } from "@/lib/api";
+import { UPLOAD_ACCEPT } from "@/lib/upload-formats";
 import type { Material } from "@/types/listenflow";
 
 export default function MaterialsPage() {
@@ -182,7 +183,7 @@ export default function MaterialsPage() {
             上传文件
             <input
               type="file"
-              accept="video/*,audio/*,.srt,.vtt,.txt"
+              accept={UPLOAD_ACCEPT}
               onChange={handleUpload}
             />
           </label>
